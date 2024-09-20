@@ -28,7 +28,7 @@ def load_and_run_executable_windows(file_path):
     ctypes.windll.kernel32.VirtualProtect(
         ctypes.c_void_p(ctypes.addressof(ctypes.c_char.from_buffer(buffer))),
         len(executable_code),
-        0x40,  # PAGE_EXECUTE_READWRITE
+        0x40,
         ctypes.byref(ctypes.c_ulong())
     )
 
