@@ -1,3 +1,3 @@
-import run
+import runwindows
 
-run.load_and_run_executable_in_memory('helloworld.out')
+runwindows.load_and_run_executable_windows('./dist/helloworldpython.exe')
