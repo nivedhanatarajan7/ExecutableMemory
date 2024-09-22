@@ -1,35 +1,73 @@
 import ctypes
-import os
+import numpy as np
+import pefile
 
-def run_exe_in_memory(exe_path):
-    with open(exe_path, "rb") as f:
-        exe_data = f.read()
+def run_exe_in_memory(pe_path):
+    pe = pefile.PE(pe_path)
 
-    size = len(exe_data)
+    size = pe.OPTIONAL_HEADER.SizeOfImage
+    print(f"Size of executable data: {size} bytes")
 
-    addr = ctypes.windll.kernel32.VirtualAlloc(
-        None,
-        size,
-        0x1000 | 0x2000,
-        0x40
-    )
+    ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_void_p
+    addr = ctypes.windll.kernel32.VirtualAlloc(ctypes.c_int(0),
+                                                ctypes.c_int(size),
+                                                ctypes.c_int(0x3000),
+                                                ctypes.c_int(0x40))
+
     if not addr:
         raise Exception("VirtualAlloc failed")
+    
+    print(f"Memory allocated at address: {hex(addr)}")
+
+    for section in pe.sections:
+        section_size = section.SizeOfRawData
+        section_addr = addr + section.VirtualAddress
+        
+        print(f"Copying section {section.Name.decode().strip()} at {hex(section_addr)}")
+        
+        section_data = section.get_data()
+        section_data_np = np.frombuffer(section_data, dtype=np.uint8)
+
+        buffer_ptr = section_data_np.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
+        
+        print(f"Attempting to copy {section_size} bytes to address {hex(section_addr)}...")
+        ctypes.windll.kernel32.RtlMoveMemory(ctypes.c_void_p(section_addr),
+                                              buffer_ptr,
+                                              ctypes.c_int(section_size))
+
+        print(f"Section {section.Name.decode().strip()} copied successfully.")
+
+    image_base = pe.OPTIONAL_HEADER.ImageBase
+    entry_point_offset = pe.OPTIONAL_HEADER.AddressOfEntryPoint
+
+    entry_point_address = addr + entry_point_offset 
+    print(f"Image Base: {hex(image_base)}")
+    print(f"Entry Point Offset: {hex(entry_point_offset)}")
+    print(f"Calculated Entry Point Address: {hex(entry_point_address)}")
+
+    if entry_point_address < addr or entry_point_address >= addr + size:
+        raise Exception("Entry point address is out of allocated memory bounds.")
+
+    entry_point_type = ctypes.CFUNCTYPE(ctypes.c_int)
 
     try:
-        buffer = ctypes.create_string_buffer(exe_data)
-        ctypes.memmove(addr, buffer, size)
+        entry_point = ctypes.cast(entry_point_address, entry_point_type)
+        print(f"Successfully cast entry point to function type.")
     except Exception as e:
-        print(f"Error writing to memory: {e}")
-
-    entry_point = ctypes.cast(addr, ctypes.CFUNCTYPE(ctypes.c_int))
+        raise Exception(f"Failed to cast entry point: {e}")
 
     try:
+        print(f"Calling entry point at {hex(entry_point_address)}...")
         result = entry_point()
-        return result
+        print(f"Process exited with code: {result}")
     except Exception as e:
         print(f"Error executing entry point: {e}")
+        result = ""
+        result = None
+    print(result) 
+    return result
 
-exe_path = "./dist/helloworldpython.exe"
-exit_code = run_exe_in_memory(exe_path)
+
+pe_path = "./dist/helloworldpython.exe"
+exit_code = run_exe_in_memory(pe_path)
 print(f"Process exited with code: {exit_code}")
