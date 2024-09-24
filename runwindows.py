@@ -2,7 +2,7 @@ import ctypes
 import numpy as np
 import pefile
 
-def run_exe_in_memory(pe_path):
+def run_exe_in_memory_windows(pe_path):
     pe = pefile.PE(pe_path)
 
     size = pe.OPTIONAL_HEADER.SizeOfImage
@@ -72,16 +72,10 @@ def run_exe_in_memory(pe_path):
 
     try:
         print(f"Calling entry point at {hex(entry_point_address)}...")
-        result = entry_point()
+        entry_point()
         print(f"Process exited with code: {result}")
     except Exception as e:
         print(f"Error executing entry point: {e}")
         result = None
 
-    print(result) 
     return result
-
-
-pe_path = "./dist/helloworldpython.exe"
-exit_code = run_exe_in_memory(pe_path)
-print(f"Process exited with code: {exit_code}")
