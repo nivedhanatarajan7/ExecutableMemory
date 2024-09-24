@@ -19,6 +19,8 @@ def run_exe_in_memory(pe_path):
     
     print(f"Memory allocated at address: {hex(addr)}")
 
+    memory_data = bytearray(size)
+
     for section in pe.sections:
         section_size = section.SizeOfRawData
         section_addr = addr + section.VirtualAddress
@@ -37,6 +39,8 @@ def run_exe_in_memory(pe_path):
 
         print(f"Section {section.Name.decode().strip()} copied successfully.")
 
+        memory_data[section.VirtualAddress:section.VirtualAddress + section_size] = section_data
+
     image_base = pe.OPTIONAL_HEADER.ImageBase
     entry_point_offset = pe.OPTIONAL_HEADER.AddressOfEntryPoint
 
@@ -47,6 +51,16 @@ def run_exe_in_memory(pe_path):
 
     if entry_point_address < addr or entry_point_address >= addr + size:
         raise Exception("Entry point address is out of allocated memory bounds.")
+
+    for section in pe.sections:
+        section_size = section.SizeOfRawData
+        section_data = section.get_data()
+        memory_section = memory_data[section.VirtualAddress:section.VirtualAddress + section_size]
+
+        if memory_section != section_data:
+            print(f"Memory section {section.Name.decode().strip()} does NOT match original.")
+        else:
+            print(f"Memory section {section.Name.decode().strip()} matches original.")
 
     entry_point_type = ctypes.CFUNCTYPE(ctypes.c_int)
 
@@ -62,8 +76,8 @@ def run_exe_in_memory(pe_path):
         print(f"Process exited with code: {result}")
     except Exception as e:
         print(f"Error executing entry point: {e}")
-        result = ""
         result = None
+
     print(result) 
     return result
 
